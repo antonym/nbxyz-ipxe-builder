@@ -1,0 +1,46 @@
+sudo: required
+
+services:
+- docker
+
+addons:
+  apt:
+    packages:
+      - docker-ce
+
+install: skip
+
+jobs:
+  include:
+    - &deploy-stage
+      stage: build and deploy
+      script:
+        # set up the base image
+        - sed -i "s#^FROM debian:stable-slim#FROM ${DOCKER_FROM}#" Dockerfile
+        # build
+        - >
+          docker build -t netbootxyz:$DOCKER_TAG -f Dockerfile \
+            --build-arg VERSION=v1.05 \
+            .
+      after_success:
+        - |
+          #docker login -u="netbootxyz" -p="$DOCKER_PASSWORD"
+          if [ "$TRAVIS_BRANCH" == "master" ]; then
+              docker tag netbootxyz:$DOCKER_TAG netbootxyz/netbootxyz:$DOCKER_TAG
+              docker push netbootxyz/netbootxyzgrafana:$DOCKER_TAG
+          elif [ "$TRAVIS_BRANCH" == "$NETBOOTXYZ_VERSION" ]; then
+              docker tag netbootxyz:$DOCKER_TAG netbootxyz/netbootxyz:$NETBOOTXYZ_VERSION-$DOCKER_TAG
+              docker push netbootxyz/netbootxyz:$NETBOOTXYZ_VERSION-$DOCKER_TAG
+          fi
+      env:
+        - DOCKER_FROM=debian:stable-slim
+        - DOCKER_TAG=amd64
+
+    - <<: *deploy-stage
+      env:
+        - DOCKER_FROM=resin/armv7hf-debian:latest
+        - DOCKER_TAG=aarch64
+
+env:
+  global:
+  - NETBOOTXYZ_VERSION=1.0.4
